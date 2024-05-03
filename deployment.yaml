@@ -130,9 +130,9 @@ resources:
           echo "max_connections=2000" | sudo tee -a /etc/postgresql/12/main/postgresql.conf
           sudo service postgresql restart
 
-# Alarms instances
+# Auth instances
 - type: compute.v1.instance
-  name: sprint3-alarms-app-a
+  name: sprint3-auth-app-a
   properties:
     zone: us-central1-a
     machineType: https://www.googleapis.com/compute/v1/projects/balanceadorcarga-416022/zones/us-central1-a/machineTypes/e2-micro
@@ -166,7 +166,7 @@ resources:
           
           sudo pip3 install -r requirements.txt
 - type: compute.v1.instance
-  name: sprint3-alarms-app-b
+  name: sprint3-auth-app-b
   properties:
     zone: us-central1-a
     machineType: https://www.googleapis.com/compute/v1/projects/balanceadorcarga-416022/zones/us-central1-a/machineTypes/e2-micro
@@ -200,7 +200,7 @@ resources:
           
           sudo pip3 install -r requirements.txt
 - type: compute.v1.instance
-  name: sprint3-alarms-app-c
+  name: sprint3-auth-app-c
   properties:
     zone: us-central1-a
     machineType: https://www.googleapis.com/compute/v1/projects/balanceadorcarga-416022/zones/us-central1-a/machineTypes/e2-micro
