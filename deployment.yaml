@@ -1,0 +1,273 @@
+resources:
+# Firewall rules
+- name: sprint3-services-apps
+  type: compute.v1.firewall
+  properties:
+    network: https://www.googleapis.com/compute/v1/projects/balanceadorcarga-416022/global/networks/default
+    priority: 1000
+    direction: INGRESS
+    sourceTags: 
+    - sprint3-circuit-breaker
+    targetTags:
+    - sprint3-services-firewall
+    allowed:
+    - IPProtocol: TCP
+      ports: 
+      - 8080
+- name: sprint3-services-apps-web
+  type: compute.v1.firewall
+  properties:
+    network: https://www.googleapis.com/compute/v1/projects/balanceadorcarga-416022/global/networks/default
+    priority: 1000
+    direction: INGRESS
+    sourceRanges: 
+    - 0.0.0.0/0
+    targetTags:
+    - sprint3-services-firewall
+    allowed:
+    - IPProtocol: TCP
+      ports: 
+      - 8080
+- name: sprint3-circuit-breaker
+  type: compute.v1.firewall
+  properties:
+    network: https://www.googleapis.com/compute/v1/projects/balanceadorcarga-416022/global/networks/default
+    priority: 1000
+    direction: INGRESS
+    sourceRanges: 
+    - 0.0.0.0/0
+    targetTags:
+    - sprint3-circuit-breaker
+    allowed:
+    - IPProtocol: TCP
+      ports: 
+      - 8000
+- name: sprint3-circuit-breaker-admin
+  type: compute.v1.firewall
+  properties:
+    network: https://www.googleapis.com/compute/v1/projects/balanceadorcarga-416022/global/networks/default
+    priority: 1000
+    direction: INGRESS
+    sourceRanges: 
+    - 0.0.0.0/0
+    targetTags:
+    - sprint3-circuit-breaker
+    allowed:
+    - IPProtocol: TCP
+      ports: 
+      - 8001
+- name: sprint3-monitoring-db
+  type: compute.v1.firewall
+  properties:
+    network: https://www.googleapis.com/compute/v1/projects/balanceadorcarga-416022/global/networks/default
+    priority: 1000
+    direction: INGRESS
+    sourceTags: 
+    - sprint3-services-firewall
+    targetTags:
+    - sprint3-monitoring-db
+    allowed:
+    - IPProtocol: TCP
+      ports: 
+      - 5432
+
+# Kong instance
+- type: compute.v1.instance
+  name: sprint3-kong-instance
+  properties:
+    zone: us-central1-a
+    machineType: https://www.googleapis.com/compute/v1/projects/balanceadorcarga-416022/zones/us-central1-a/machineTypes/e2-micro
+    disks:
+    - deviceName: boot
+      type: PERSISTENT
+      boot: true
+      autoDelete: true
+      initializeParams:
+        sourceImage: https://www.googleapis.com/compute/v1/projects/ubuntu-os-cloud/global/images/ubuntu-2004-focal-v20240307b
+    networkInterfaces:
+    - network: https://www.googleapis.com/compute/v1/projects/balanceadorcarga-416022/global/networks/default
+      networkIP: 10.128.0.51
+      accessConfigs:
+      - name: External NAT
+        type: ONE_TO_ONE_NAT
+    tags:
+      items: 
+      - sprint3-circuit-breaker
+
+# Database instance
+- type: compute.v1.instance
+  name: sprint3-db-instance
+  properties:
+    zone: us-central1-a
+    machineType: https://www.googleapis.com/compute/v1/projects/balanceadorcarga-416022/zones/us-central1-a/machineTypes/e2-micro
+    disks:
+    - deviceName: boot
+      type: PERSISTENT
+      boot: true
+      autoDelete: true
+      initializeParams:
+        sourceImage: https://www.googleapis.com/compute/v1/projects/ubuntu-os-cloud/global/images/ubuntu-2004-focal-v20240307b
+    networkInterfaces:
+    - network: https://www.googleapis.com/compute/v1/projects/balanceadorcarga-416022/global/networks/default
+      networkIP: 10.128.0.52
+      accessConfigs:
+      - name: External NAT
+        type: ONE_TO_ONE_NAT
+    tags:
+      items: 
+      - sprint3-monitoring-db
+    metadata:
+      items:
+      - key: startup-script
+        value: |
+          #!/bin/bash
+          sudo apt-get update
+          sudo apt-get install -y postgresql postgresql-contrib
+          sudo -u postgres psql -c "CREATE USER monitoring_user WITH PASSWORD 'isis2503';"
+          sudo -u postgres createdb -O monitoring_user monitoring_db
+          echo "host all all 0.0.0.0/0 trust" | sudo tee -a /etc/postgresql/12/main/pg_hba.conf
+          echo "listen_addresses='*'" | sudo tee -a /etc/postgresql/12/main/postgresql.conf
+          echo "max_connections=2000" | sudo tee -a /etc/postgresql/12/main/postgresql.conf
+          sudo service postgresql restart
+
+# Alarms instances
+- type: compute.v1.instance
+  name: sprint3-alarms-app-a
+  properties:
+    zone: us-central1-a
+    machineType: https://www.googleapis.com/compute/v1/projects/balanceadorcarga-416022/zones/us-central1-a/machineTypes/e2-micro
+    disks:
+    - deviceName: boot
+      type: PERSISTENT
+      boot: true
+      autoDelete: true
+      initializeParams:
+        sourceImage: https://www.googleapis.com/compute/v1/projects/ubuntu-os-cloud/global/images/ubuntu-2004-focal-v20240307b
+    networkInterfaces:
+    - network: https://www.googleapis.com/compute/v1/projects/balanceadorcarga-416022/global/networks/default
+      networkIP: 10.128.0.53
+      accessConfigs:
+      - name: External NAT
+        type: ONE_TO_ONE_NAT
+    tags:
+      items: 
+      - sprint3-services-firewall
+    metadata:
+      items:
+      - key: startup-script
+        value: |
+          #!/bin/bash
+          sudo apt-get update
+          sudo apt install python3-pip -y
+          sudo mkdir /labs
+          cd /labs
+          sudo git clone https://github.com/Soulho/Sprint-3.git
+          cd Sprint-3
+          
+          sudo pip3 install -r requirements.txt
+- type: compute.v1.instance
+  name: sprint3-alarms-app-b
+  properties:
+    zone: us-central1-a
+    machineType: https://www.googleapis.com/compute/v1/projects/balanceadorcarga-416022/zones/us-central1-a/machineTypes/e2-micro
+    disks:
+    - deviceName: boot
+      type: PERSISTENT
+      boot: true
+      autoDelete: true
+      initializeParams:
+        sourceImage: https://www.googleapis.com/compute/v1/projects/ubuntu-os-cloud/global/images/ubuntu-2004-focal-v20240307b
+    networkInterfaces:
+    - network: https://www.googleapis.com/compute/v1/projects/balanceadorcarga-416022/global/networks/default
+      networkIP: 10.128.0.54
+      accessConfigs:
+      - name: External NAT
+        type: ONE_TO_ONE_NAT
+    tags:
+      items: 
+      - sprint3-services-firewall
+    metadata:
+      items:
+      - key: startup-script
+        value: |
+          #!/bin/bash
+          sudo apt-get update
+          sudo apt install python3-pip -y
+          sudo mkdir /labs
+          cd /labs
+          sudo git clone https://github.com/Soulho/Sprint-3.git
+          cd Sprint-3
+          
+          sudo pip3 install -r requirements.txt
+- type: compute.v1.instance
+  name: sprint3-alarms-app-c
+  properties:
+    zone: us-central1-a
+    machineType: https://www.googleapis.com/compute/v1/projects/balanceadorcarga-416022/zones/us-central1-a/machineTypes/e2-micro
+    disks:
+    - deviceName: boot
+      type: PERSISTENT
+      boot: true
+      autoDelete: true
+      initializeParams:
+        sourceImage: https://www.googleapis.com/compute/v1/projects/ubuntu-os-cloud/global/images/ubuntu-2004-focal-v20240307b
+    networkInterfaces:
+    - network: https://www.googleapis.com/compute/v1/projects/balanceadorcarga-416022/global/networks/default
+      networkIP: 10.128.0.55
+      accessConfigs:
+      - name: External NAT
+        type: ONE_TO_ONE_NAT
+    tags:
+      items: 
+      - sprint3-services-firewall
+    metadata:
+      items:
+      - key: startup-script
+        value: |
+          #!/bin/bash
+          sudo apt-get update
+          sudo apt install python3-pip -y
+          sudo mkdir /labs
+          cd /labs
+          sudo git clone https://github.com/Soulho/Sprint-3.git
+          cd Sprint-3
+          
+          sudo pip3 install -r requirements.txt
+# Monitoring app instance
+- type: compute.v1.instance
+  name: sprint3-monitoring-app
+  properties:
+    zone: us-central1-a
+    machineType: https://www.googleapis.com/compute/v1/projects/balanceadorcarga-416022/zones/us-central1-a/machineTypes/e2-micro
+    disks:
+    - deviceName: boot
+      type: PERSISTENT
+      boot: true
+      autoDelete: true
+      initializeParams:
+        sourceImage: https://www.googleapis.com/compute/v1/projects/ubuntu-os-cloud/global/images/ubuntu-2004-focal-v20240307b
+    networkInterfaces:
+    - network: https://www.googleapis.com/compute/v1/projects/balanceadorcarga-416022/global/networks/default
+      networkIP: 10.128.0.56
+      accessConfigs:
+      - name: External NAT
+        type: ONE_TO_ONE_NAT
+    tags:
+      items: 
+      - sprint3-services-firewall
+    metadata:
+      items:
+      - key: startup-script
+        value: |
+          #!/bin/bash
+          sudo apt-get update
+          sudo apt install python3-pip -y
+          sudo mkdir /labs
+          cd /labs
+          sudo git clone https://github.com/Soulho/Sprint-3.git
+          cd Sprint-3
+          
+          sudo pip3 install -r requirements.txt
+          sudo python3 manage.py makemigrations
+          sudo python3 manage.py migrate
+          sudo nohup python3 manage.py runserver 0.0.0.0:8080 &
